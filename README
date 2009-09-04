@@ -1,0 +1,20 @@
+Poor Database Viewer powered by Sinatra+Haml+Sequel
+
+Require:
+  Ruby
+  Gems:
+    sinatra
+    haml
+    sequel
+    (and database adatpers)
+
+1) Setting
+  $ cp config.sample.yml config.yml
+  $ vi config.yml
+
+2-a) Run application.rb with WEBrick
+  $ ruby application.rb
+
+2-b) Run as CGI
+  Edit configuration file of httpd server (e.g. /etc/httpd/conf/httpd.conf)
+  and restart httpd server.

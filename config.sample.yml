@@ -1,0 +1,21 @@
+### MySQL
+#database:
+#  adapter: mysql
+#  database: dbname
+#  host: localhost
+#  user: dbuser
+#  password: dbpasswd
+#  encoding: utf8
+
+### PostgreSQL
+#database:
+#  adapter: postgres
+#  database: dbname
+#  host: localhost
+#  user: dbuser
+#  password: dbpasswd
+
+### SQLite
+#database:
+#  adapter: sqlite
+#  database: db.sqlite
