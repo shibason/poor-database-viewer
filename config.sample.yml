@@ -1,3 +1,8 @@
+pagesize: 30
+
+haml:
+  format: html5
+
 ### MySQL
 #database:
 #  adapter: mysql

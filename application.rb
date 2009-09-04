@@ -1,13 +1,16 @@
 require 'rubygems'
 require 'sinatra'
 require 'haml'
-require 'sass'
 require 'sequel'
 require 'yaml'
 
 configure do
-  set :config, YAML.load_file('config.yml')
-  set :pagesize, 30
+  config = YAML.load_file('config.yml')
+  set :config, config
+  set :pagesize, config['pagesize'] || 30
+  if haml = config['haml']
+    set :haml, { :format => haml['format'].to_sym } if haml['format']
+  end
 end
 
 helpers do
@@ -28,7 +31,6 @@ before do
           'Pragma' => 'no-cache',
           'Expires' => '0')
   @index_url = link_to
-  @css_url = link_to('/resource/css')
 end
 
 get '/' do
@@ -65,11 +67,6 @@ get %r|/list/([^/?&#]+)(?:/([^/?&#]+))?| do |table, page|
   haml :list
 end
 
-get '/resource/css' do
-  content_type 'text/css', :charset => 'utf-8'
-  sass :css
-end
-
 __END__
 
 @@layout
@@ -79,7 +76,17 @@ __END__
     %meta{ 'http-equiv' => 'Content-Type', |
            :content => 'text/html; charset=UTF-8' }
     %title= @page_title
-    %link{ :rel => 'stylesheet', :type => 'text/css', :href => @css_url }
+    %style{ :type => 'text/css' }
+      :sass
+        body
+          :margin 20px
+        table
+          :border-collapse collapse
+        th
+          :background-color #f5f5f5
+        th, td
+          :padding 0.2em
+          :border 1px solid #808080
   %body
     = yield
 
@@ -110,14 +117,3 @@ __END__
       %a{ :href => @next_url } Next
 %p
   %a{ :href => @index_url } Index
-
-@@css
-body
-  :margin 20px
-table
-  :border-collapse collapse
-th
-  :background-color #f5f5f5
-th, td
-  :padding 0.2em
-  :border 1px solid #808080
