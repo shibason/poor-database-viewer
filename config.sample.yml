@@ -12,6 +12,7 @@ haml:
 #  password: dbpasswd
 #  encoding: utf8
 ##  set_names: utf8
+##  fix_invalid_datetime: true
 
 ### PostgreSQL
 #database:

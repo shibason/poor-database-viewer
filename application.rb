@@ -6,11 +6,23 @@ require 'yaml'
 
 configure do
   config = YAML.load_file('config.yml')
-  set :db_config, config['database']
   set :pagesize, config['pagesize'] || 30
   set :truncate_size, 32
   if haml = config['haml']
     set :haml, { :format => haml['format'].to_sym } if haml['format']
+  end
+  set :db_config, config['database']
+  if config['database']['fix_invalid_datetime']
+    Sequel.module_eval do
+      class << self
+        alias :_original_string_to_datetime :string_to_datetime
+        def string_to_datetime(s)
+          _original_string_to_datetime(s)
+        rescue InvalidValue
+          Time.at(0)
+        end
+      end
+    end
   end
 end
 
@@ -36,6 +48,10 @@ helpers do
 
   def get_primary_key(schema)
     schema.find { |key, options| options[:primary_key] }[0]
+  rescue
+    @page_title = 'Halting'
+    @error_message = 'Primary key is not found.'
+    halt haml :error
   end
 
   def truncate(value)
@@ -187,6 +203,8 @@ __END__
         th, td
           :padding 0.2em
           :border 1px solid #808080
+        p.error
+          :color red
   %body
     %h2&= @page_title
     = yield
@@ -254,4 +272,9 @@ __END__
       %input{ :type => 'submit', :value => 'Delete' }
 %p
   %a{ :href => back } Back
+  %a{ :href => @index_url } Index
+
+@@error
+%p.error= @error_message
+%p
   %a{ :href => @index_url } Index
