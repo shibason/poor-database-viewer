@@ -119,7 +119,7 @@ get '/:table/:primary_value' do |table, primary_value|
       @columns << {
         :key => key,
         :value => values[key],
-        :type => options[:type]
+        :type => options[:type] || :string
       }
     end
   end
