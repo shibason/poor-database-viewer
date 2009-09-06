@@ -8,14 +8,20 @@ configure do
   config = YAML.load_file('config.yml')
   set :db_config, config['database']
   set :pagesize, config['pagesize'] || 30
+  set :truncate_size, 32
   if haml = config['haml']
     set :haml, { :format => haml['format'].to_sym } if haml['format']
   end
 end
 
 helpers do
-  def db_connect(&block)
-    Sequel.connect(options.db_config, &block)
+  def db_connect
+    Sequel.connect(options.db_config) do |db|
+      if set_names = options.db_config['set_names']
+        db << "SET NAMES #{db.literal(set_names)}"
+      end
+      yield db
+    end
   end
 
   def link_to(table = nil, primary_value = nil, parameters = nil)
@@ -30,6 +36,13 @@ helpers do
 
   def get_primary_key(schema)
     schema.find { |key, options| options[:primary_key] }[0]
+  end
+
+  def truncate(value)
+    if value.is_a?(String) && value.size > options.truncate_size
+      value = value[0, options.truncate_size] + '...'
+    end
+    value
   end
 end
 
@@ -107,7 +120,7 @@ get '/:table/:primary_value' do |table, primary_value|
       type = :text if type == :string && !options[:db_type].include?('(')
       @columns << {
         :key => key,
-        :value => escape_html(values[key]),
+        :value => values[key],
         :type => type
       }
     end
@@ -197,7 +210,7 @@ __END__
         - primary_value = row.delete(@primary_key)
         %a{ :href => link_to(@table, primary_value) }&= primary_value
       - row.each do |key, value|
-        %td&= value
+        %td&= truncate(value)
 %p
   total #{@count} records
   %a{ :href => link_to(@table, '_', :new => 1) } => Create new record
@@ -230,13 +243,13 @@ __END__
           - case column[:type]
           - when :string
             %input{ :type => 'text', :name => column[:key], |
-                    :size => 60, :value => column[:value] }
+                    :size => 60, :value => escape_html(column[:value]) }
           - when :text
             %textarea{ :name => column[:key], |
-                       :rows => 3, :cols => 60 }= column[:value]
+                       :rows => 3, :cols => 60 }&= column[:value]
           - else
             %input{ :type => 'text', :name => column[:key], |
-                    :size => 40, :value => column[:value] }
+                    :size => 40, :value => escape_html(column[:value]) }
   %p
     %input{ :type => 'submit', :value => 'Send' }
 - if @delete_url

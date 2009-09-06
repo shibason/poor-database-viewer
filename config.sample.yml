@@ -11,6 +11,7 @@ haml:
 #  user: dbuser
 #  password: dbpasswd
 #  encoding: utf8
+##  set_names: utf8
 
 ### PostgreSQL
 #database:
