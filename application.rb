@@ -116,12 +116,10 @@ get '/:table/:primary_value' do |table, primary_value|
     end
     schema.each do |key, options|
       next if key == @primary_key
-      type = options[:type]
-      type = :text if type == :string && !options[:db_type].include?('(')
       @columns << {
         :key => key,
         :value => values[key],
-        :type => type
+        :type => options[:type]
       }
     end
   end
@@ -240,11 +238,7 @@ __END__
       %tr
         %th= column[:key]
         %td
-          - case column[:type]
-          - when :string
-            %input{ :type => 'text', :name => column[:key], |
-                    :size => 60, :value => escape_html(column[:value]) }
-          - when :text
+          - if column[:type] == :string
             %textarea{ :name => column[:key], |
                        :rows => 3, :cols => 60 }&= column[:value]
           - else
