@@ -18,8 +18,12 @@ helpers do
     Sequel.connect(options.db_config, &block)
   end
 
-  def link_to(path = '/', parameters = nil)
-    url = "#{request.script_name}#{path}"
+  def link_to(table = nil, primary_value = nil, parameters = nil)
+    url = request.script_name + '/'
+    if table
+      url += escape(table)
+      url += '/' + escape(primary_value) if primary_value
+    end
     url += '?' + build_query(parameters) if parameters
     url
   end
@@ -38,16 +42,16 @@ get '/' do
   @page_title = 'List of Tables'
   db_connect do |db|
     @tables = db.tables.map do |table|
-      { :name => table, :link => link_to("/list/#{table}") }
+      { :name => table, :link => link_to(table) }
     end
   end
   haml :index
 end
 
-get %r|/list/([^/?&#]+)(?:/([^/?&#]+))?| do |table, page|
+get '/:table' do |table|
   @page_title = "Records of '#{table}'"
-  @view_url = link_to("/view/#{table}")
-  @page = page.to_i
+  @table = table
+  @page = params[:page].to_i
   @page = 1 if @page < 1
 
   db_connect do |db|
@@ -61,40 +65,41 @@ get %r|/list/([^/?&#]+)(?:/([^/?&#]+))?| do |table, page|
 
   @max_page = @count / options.pagesize + 1
   if @page == 2
-    @prev_url = link_to("/list/#{table}")
+    @prev_url = link_to(table)
   elsif @page > 2
-    @prev_url = link_to("/list/#{table}/#{@page - 1}")
-    @head_url = link_to("/list/#{table}")
+    @prev_url = link_to(table, nil, :page => @page - 1)
+    @head_url = link_to(table)
   end
-  @next_url = link_to("/list/#{table}/#{@page + 1}") if @page < @max_page
+  @next_url = link_to(table, nil, :page => @page + 1) if @page < @max_page
   if @page + 1 < @max_page
-    @last_url = link_to("/list/#{table}/#{@max_page}")
+    @last_url = link_to(table, nil, :page => @max_page)
   end
 
   haml :list
 end
 
-get %r|/view/([^/?&#]+)(?:/([^/?&#]+))?| do |table, primary_value|
-  @primary_value = primary_value
-  if @primary_value
-    @page_title = "Update record of '#{table}'"
-    @edit_url = link_to("/update/#{table}/#{escape(@primary_value)}")
-    @edit_method = 'post'
-    @delete_url = link_to("/delete/#{table}/#{escape(@primary_value)}")
-  else
+get '/:table/:primary_value' do |table, primary_value|
+  is_new = params[:new]
+  if is_new
     @page_title = "Create new record of '#{table}'"
-    @edit_url = link_to("/create/#{table}")
+    @edit_url = link_to(table)
     @edit_method = 'put'
+  else
+    @primary_value = primary_value
+    @page_title = "Update record of '#{table}'"
+    @edit_url = link_to(table, primary_value)
+    @edit_method = 'post'
+    @delete_url = link_to(table, primary_value)
   end
 
   @columns = []
   db_connect do |db|
     schema = db.schema(table)
     @primary_key = get_primary_key(schema)
-    if @primary_value
-      values = db[table.to_sym][@primary_key => @primary_value]
-    else
+    if is_new
       values = {}
+    else
+      values = db[table.to_sym][@primary_key => primary_value]
     end
     schema.each do |key, options|
       next if key == @primary_key
@@ -121,32 +126,32 @@ def build_columns(params, schema, primary_key)
   columns
 end
 
-put '/create/:table' do |table|
+put '/:table' do |table|
   db_connect do |db|
     schema = db.schema(table)
     primary_key = get_primary_key(schema)
     columns = build_columns(params, schema, primary_key)
     db[table.to_sym].insert(columns)
   end
-  redirect link_to("/list/#{table}")
+  redirect link_to(table)
 end
 
-post '/update/:table/:primary_value' do |table, primary_value|
+post '/:table/:primary_value' do |table, primary_value|
   db_connect do |db|
     schema = db.schema(table)
     primary_key = get_primary_key(schema)
     columns = build_columns(params, schema, primary_key)
     db[table.to_sym].filter(primary_key => primary_value).update(columns)
   end
-  redirect link_to("/list/#{table}")
+  redirect link_to(table)
 end
 
-delete '/delete/:table/:primary_value' do |table, primary_value|
+delete '/:table/:primary_value' do |table, primary_value|
   db_connect do |db|
     primary_key = get_primary_key(db.schema(table))
     db[table.to_sym].filter(primary_key => primary_value).delete
   end
-  redirect link_to("/list/#{table}")
+  redirect link_to(table)
 end
 
 __END__
@@ -190,12 +195,12 @@ __END__
     %tr
       %td
         - primary_value = row.delete(@primary_key)
-        %a{ :href => "#{@view_url}/#{escape(primary_value)}" }&= primary_value
+        %a{ :href => link_to(@table, primary_value) }&= primary_value
       - row.each do |key, value|
         %td&= value
 %p
   total #{@count} records
-  %a{ :href => @view_url } => Create new record
+  %a{ :href => link_to(@table, '_', :new => 1) } => Create new record
 - if @max_page > 1
   %p
     - if @head_url
