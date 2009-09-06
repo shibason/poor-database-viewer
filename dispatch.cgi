@@ -1,4 +1,4 @@
-#!/home/shiba/bin/ruby
+#!/usr/bin/env ruby
 require 'application'
 disable :run
 # Fix Errno::ESPIPE error with CGI mode.
