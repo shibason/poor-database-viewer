@@ -1,4 +1,5 @@
 pagesize: 30
+truncate_size: 32
 
 haml:
   format: html5

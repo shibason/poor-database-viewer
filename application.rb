@@ -7,7 +7,7 @@ require 'yaml'
 configure do
   config = YAML.load_file('config.yml')
   set :pagesize, config['pagesize'] || 30
-  set :truncate_size, 32
+  set :truncate_size, config['truncate_size'] || 32
   if haml = config['haml']
     set :haml, { :format => haml['format'].to_sym } if haml['format']
   end
@@ -39,19 +39,17 @@ helpers do
   def link_to(table = nil, primary_value = nil, parameters = nil)
     url = request.script_name + '/'
     if table
-      url += escape(table)
-      url += '/' + escape(primary_value) if primary_value
+      url << escape(table)
+      url << '/' + escape(primary_value) if primary_value
     end
-    url += '?' + build_query(parameters) if parameters
+    url << '?' + build_query(parameters) if parameters
     url
   end
 
   def get_primary_key(schema)
     schema.find { |key, options| options[:primary_key] }[0]
   rescue
-    @page_title = 'Halting'
-    @error_message = 'Primary key is not found.'
-    halt haml :error
+    halt haml '%p.error Primary key is not found.'
   end
 
   def truncate(value)
@@ -68,16 +66,18 @@ before do
 end
 
 get '/' do
+  @location = :index
   @page_title = 'List of Tables'
   db_connect do |db|
     @tables = db.tables.map do |table|
       { :name => table, :link => link_to(table) }
     end
   end
-  haml :index
+  haml @location
 end
 
 get '/:table' do |table|
+  @location = :list
   @page_title = "Records of '#{table}'"
   @table = table
   @page = params[:page].to_i
@@ -104,12 +104,12 @@ get '/:table' do |table|
     @last_url = link_to(table, nil, :page => @max_page)
   end
 
-  haml :list
+  haml @location
 end
 
 get '/:table/:primary_value' do |table, primary_value|
-  is_new = params[:new]
-  if is_new
+  @location = :view
+  if is_new = params[:new]
     @page_title = "Create new record of '#{table}'"
     @edit_url = link_to(table)
     @edit_method = 'put'
@@ -125,11 +125,7 @@ get '/:table/:primary_value' do |table, primary_value|
   db_connect do |db|
     schema = db.schema(table)
     @primary_key = get_primary_key(schema)
-    if is_new
-      values = {}
-    else
-      values = db[table.to_sym][@primary_key => primary_value]
-    end
+    values = is_new ? {} : db[table.to_sym][@primary_key => primary_value]
     schema.each do |key, options|
       next if key == @primary_key
       @columns << {
@@ -140,36 +136,34 @@ get '/:table/:primary_value' do |table, primary_value|
     end
   end
 
-  haml :view
+  haml @location
 end
 
-def build_columns(params, schema, primary_key)
-  columns = {}
-  schema.each do |key, options|
-    next if key == primary_key
-    next unless params.has_key?(key.to_s)
-    columns[key] = params[key.to_s]
-  end
-  columns
-end
-
-put '/:table' do |table|
+def insert_or_update(table, primary_value, params)
   db_connect do |db|
     schema = db.schema(table)
     primary_key = get_primary_key(schema)
-    columns = build_columns(params, schema, primary_key)
-    db[table.to_sym].insert(columns)
+    columns = {}
+    schema.each do |key, options|
+      next if key == primary_key
+      next unless params.has_key?(key.to_s)
+      columns[key] = params[key.to_s]
+    end
+    if primary_value
+      db[table.to_sym].filter(primary_key => primary_value).update(columns)
+    else
+      db[table.to_sym].insert(columns)
+    end
   end
+end
+
+put '/:table' do |table|
+  insert_or_update(table, nil, params)
   redirect link_to(table)
 end
 
 post '/:table/:primary_value' do |table, primary_value|
-  db_connect do |db|
-    schema = db.schema(table)
-    primary_key = get_primary_key(schema)
-    columns = build_columns(params, schema, primary_key)
-    db[table.to_sym].filter(primary_key => primary_value).update(columns)
-  end
+  insert_or_update(table, primary_value, params)
   redirect link_to(table)
 end
 
@@ -208,18 +202,23 @@ __END__
   %body
     %h2&= @page_title
     = yield
+    - unless @location == :index
+      %p
+        - unless @location == :list
+          %a{ :href => back } Back
+        %a{ :href => @index_url } Index
 
 @@index
 %ul
   - @tables.each do |table|
     %li
-      %a{ :href => table[:link] }= table[:name]
+      %a{ :href => table[:link] }&= table[:name]
 
 @@list
 %table
   %tr
     - @columns.each do |column|
-      %th= column
+      %th&= column
   - @rows.each do |row|
     %tr
       %td
@@ -233,16 +232,14 @@ __END__
 - if @max_page > 1
   %p
     - if @head_url
-      %a{ :href => @head_url } Head
+      %a{ :href => @head_url } <<
     - if @prev_url
-      %a{ :href => @prev_url } Prev
+      %a{ :href => @prev_url } <
     %span #{@page} / #{@max_page}
     - if @next_url
-      %a{ :href => @next_url } Next
+      %a{ :href => @next_url } >
     - if @last_url
-      %a{ :href => @last_url } Last
-%p
-  %a{ :href => @index_url } Index
+      %a{ :href => @last_url } >>
 
 @@view
 %form{ :method => 'post', :action => @edit_url }
@@ -250,11 +247,11 @@ __END__
   %table
     - if @primary_value
       %tr
-        %th= @primary_key
+        %th&= @primary_key
         %td&= @primary_value
     - @columns.each do |column|
       %tr
-        %th= column[:key]
+        %th&= column[:key]
         %td
           - if column[:type] == :string
             %textarea{ :name => column[:key], |
@@ -270,11 +267,3 @@ __END__
            :onsubmit => 'return confirm("realy?")' }
       %input{ :type => 'hidden', :name => '_method', :value => 'delete' }
       %input{ :type => 'submit', :value => 'Delete' }
-%p
-  %a{ :href => back } Back
-  %a{ :href => @index_url } Index
-
-@@error
-%p.error= @error_message
-%p
-  %a{ :href => @index_url } Index
