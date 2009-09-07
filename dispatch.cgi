@@ -2,7 +2,7 @@
 require 'application'
 disable :run
 # Fix Errno::ESPIPE error with CGI mode.
-if Rack.version <= '1.0'
+if Rack.release <= '1.0'
   module Rack
     class Request
       def POST
