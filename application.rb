@@ -4,6 +4,9 @@ require 'haml'
 require 'sequel'
 require 'yaml'
 
+# for favicon.ico
+use Rack::Static
+
 configure do
   config = YAML.load_file('config.yml')
   set :pagesize, config['pagesize'] || 30
