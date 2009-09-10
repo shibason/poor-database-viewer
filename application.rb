@@ -56,8 +56,14 @@ helpers do
   end
 
   def truncate(value)
-    if value.is_a?(String) && value.size > options.truncate_size
-      value = value[0, options.truncate_size] + '...'
+    if value.is_a?(String)
+      if RUBY_VERSION >= '1.9'
+        value.force_encoding(Encoding::UTF_8)
+        value.force_encoding(Encoding::ASCII_8BIT) unless value.valid_encoding?
+      end
+      if value.size > options.truncate_size
+        value = value[0, options.truncate_size] + '...'
+      end
     end
     value
   end
